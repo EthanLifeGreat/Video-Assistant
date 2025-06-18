@@ -1,8 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
-import re, os, requests, glob
+import re, requests, glob
 from video import get_video
-import time
-from moviepy.editor import VideoFileClip
 import hashlib
 from utils.seam import *
 
