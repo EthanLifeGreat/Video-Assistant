@@ -155,13 +155,13 @@ def vocal_remove(video_path: str, output_audio_path: str, output_format: str = "
             print(f"处理失败: {str(e)}")
             return False
 
+
 if __name__ == '__main__':
     # 输入输出配置
     input_video = "subtitle_extract/test_video.mp4"
     output_video = "./video_enhanced.mp4"
     output_audio = "./vocal_removed.wav"
     output_srt = "./subtitle.srt"
-
 
     print("=====================================   伴奏提取   =====================================")
     vocal_remove(input_video, output_audio)

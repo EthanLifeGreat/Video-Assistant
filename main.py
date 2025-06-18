@@ -1,9 +1,10 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
-import re, os, requests
+import re, os, requests, glob
 from video import get_video
 import time
 from moviepy.editor import VideoFileClip
 import hashlib
+from utils.seam import *
 
 app = Flask(__name__)
 
@@ -17,9 +18,11 @@ video_segments = {}
 # 视频缓存
 video_cache = {}
 
+
 def get_video_hash(url):
     """生成视频URL的哈希值作为缓存键"""
     return hashlib.md5(url.encode()).hexdigest()
+
 
 @app.route('/downloads/<path:filename>')
 def downloads(filename):
@@ -27,6 +30,7 @@ def downloads(filename):
     if not requested_path.startswith(DOWNLOAD_DIR):
         abort(404)
     return send_from_directory(DOWNLOAD_DIR, filename)
+
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -38,6 +42,7 @@ def index():
             'end': request.form.get('end_time')
         }
     return render_template('index.html', input_data=input_data)
+
 
 @app.route('/api/preview_video', methods=['POST'])
 def preview_video():
@@ -86,6 +91,7 @@ def preview_video():
     except Exception as e:
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
 
+
 @app.route('/api/get_segments', methods=['POST'])
 def get_segments():
     try:
@@ -116,6 +122,7 @@ def get_segments():
     except Exception as e:
         return jsonify({'error': f'获取片段列表失败: {str(e)}'}), 500
 
+
 @app.route('/api/finish_download', methods=['POST'])
 def finish_download():
     try:
@@ -137,7 +144,7 @@ def finish_download():
         # 清理缓存和片段记录
         if safe_title in video_segments:
             del video_segments[safe_title]
-        
+
         # 清理视频缓存
         for url_hash, cache_data in list(video_cache.items()):
             if cache_data.get('title') == title:
@@ -147,6 +154,7 @@ def finish_download():
 
     except Exception as e:
         return jsonify({'error': f'操作失败: {str(e)}'}), 500
+
 
 @app.route('/api/get_video', methods=['POST'])
 def video_api():
@@ -163,10 +171,14 @@ def video_api():
         video_hash = get_video_hash(video_url)
         cached_data = video_cache.get(video_hash, {})
 
-        title = cached_data.get('title') or get_video(video_url)
-        safe_title = re.sub(r'[\\/:"*?<>|]+', '', title)
-        original_filename = f"{safe_title}.mp4"
-        video_path = os.path.join(DOWNLOAD_DIR, original_filename)
+        title = cached_data.get('title')
+        video_path = cached_data.get('path')
+
+        if not title or not video_path or not os.path.exists(video_path):
+            # 需要下载
+            title = get_video(video_url)
+            cached_data = video_cache.get(video_hash)
+            video_path = cached_data['path']
 
         if not os.path.exists(video_path):
             return jsonify({'error': '视频文件不存在，合并可能失败'}), 500
@@ -177,7 +189,7 @@ def video_api():
                 # 生成剪辑后文件名（带时间戳防冲突）
                 clip_filename = f"{safe_title}_{start_time}-{end_time}_{int(time.time())}.mp4"
                 clip_path = os.path.join(DOWNLOAD_DIR, clip_filename)
-                
+
                 # 使用MoviePy剪辑视频，优化参数
                 clip = VideoFileClip(video_path)
                 edited_clip = clip.subclip(float(start_time), float(end_time))
@@ -237,6 +249,49 @@ def video_api():
     except Exception as e:
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
 
+
+@app.route('/api/video_process', methods=['POST'])
+def video_process():
+    data = request.get_json()
+    action = data.get('action')
+
+    if not action:
+        return jsonify({'success': False, 'message': '缺少 action 参数'}), 400
+
+    # 自动查找 /downloads/ 目录下最新的 mp4 文件
+    mp4_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.mp4'))
+    if not mp4_files:
+        return jsonify({'success': False, 'message': '未找到可处理的视频文件'}), 404
+
+    # 取最后修改时间最新的文件
+    mp4_files.sort(key=os.path.getmtime, reverse=True)
+    local_path = mp4_files[0]
+    print(f"[自动选择] 最新视频文件: {local_path}")
+
+    try:
+        if action == 'vocal_remove':
+            output_audio_path = os.path.join(DOWNLOAD_DIR, 'vocal_removed.wav')
+            success = vocal_remove(local_path, output_audio_path)
+            message = f"伴奏提取 {'成功' if success else '失败'}，文件: {output_audio_path}"
+
+        elif action == 'extract_subtitle':
+            output_srt_path = os.path.join(DOWNLOAD_DIR, 'subtitle.srt')
+            success = extract_subtitle(local_path, output_srt_path)
+            message = f"字幕提取 {'成功' if success else '失败'}，文件: {output_srt_path}"
+
+        elif action == 'enhance_audio':
+            output_video_path = os.path.join(DOWNLOAD_DIR, 'video_enhanced.mp4')
+            success = enhance_video_audio(local_path, output_video_path)
+            message = f"人声增强 {'成功' if success else '失败'}，文件: {output_video_path}"
+
+        else:
+            return jsonify({'success': False, 'message': '未知操作类型'}), 400
+
+        return jsonify({'success': success, 'message': message})
+
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'处理异常: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8000, debug=True)
-
