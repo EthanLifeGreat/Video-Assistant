@@ -123,31 +123,50 @@ def get_segments():
         return jsonify({'error': f'获取片段列表失败: {str(e)}'}), 500
 
 
+import glob
+
+
 @app.route('/api/finish_download', methods=['POST'])
 def finish_download():
     try:
         data = request.get_json()
         title = data.get('title')
+        if not title:
+            return jsonify({'error': '缺少标题参数'}), 400
+
         safe_title = re.sub(r'[\\/:"*?<>|]+', '', title)
 
         if safe_title not in video_segments:
             return jsonify({'error': '未找到视频信息'}), 404
 
         video_info = video_segments[safe_title]
-        if os.path.exists(video_info['original_path']):
+        original_path = video_info.get('original_path')
+
+        # 删除原始文件
+        if original_path and os.path.exists(original_path):
             try:
-                os.remove(video_info['original_path'])
-                print(f"完成当前下载，点击重置继续下载: {video_info['original_path']}")
+                os.remove(original_path)
+                print(f"删除原始视频文件: {original_path}")
             except Exception as e:
                 return jsonify({'error': f'删除原始视频失败: {str(e)}'}), 500
 
-        # 清理缓存和片段记录
-        if safe_title in video_segments:
-            del video_segments[safe_title]
+        # 批量删除相关片段文件，假设在original_path同目录
+        if original_path:
+            directory = os.path.dirname(original_path)
+            pattern = os.path.join(directory, f"{safe_title}_*.mp4")
+            for filepath in glob.glob(pattern):
+                try:
+                    os.remove(filepath)
+                    print(f"删除片段文件: {filepath}")
+                except Exception as e:
+                    print(f"删除片段文件失败: {filepath}, 错误: {e}")
 
-        # 清理视频缓存
+        # 删除记录
+        video_segments.pop(safe_title, None)
+
+        # 清理视频缓存，建议这里也用 safe_title 比较
         for url_hash, cache_data in list(video_cache.items()):
-            if cache_data.get('title') == title:
+            if re.sub(r'[\\/:"*?<>|]+', '', cache_data.get('title', '')) == safe_title:
                 del video_cache[url_hash]
 
         return jsonify({'message': '完成当前下载，点击重置继续下载'})
