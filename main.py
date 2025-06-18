@@ -3,6 +3,7 @@ import re, requests, glob
 from video import get_video
 import hashlib
 from utils.seam import *
+from moviepy.video.io.VideoFileClip import VideoFileClip
 
 app = Flask(__name__)
 
@@ -191,9 +192,6 @@ def video_api():
 
         # 如果提供了时间，剪辑片段
         if start_time is not None and end_time is not None:
-            from moviepy.video.io.VideoFileClip import VideoFileClip
-            import time
-
             clip_filename = f"{safe_title}_{start_time}-{end_time}.mp4"
             clip_path = os.path.join(DOWNLOAD_DIR, clip_filename)
 
