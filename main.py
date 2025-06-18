@@ -123,9 +123,6 @@ def get_segments():
         return jsonify({'error': f'获取片段列表失败: {str(e)}'}), 500
 
 
-import glob
-
-
 @app.route('/api/finish_download', methods=['POST'])
 def finish_download():
     try:
