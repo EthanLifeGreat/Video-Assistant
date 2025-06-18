@@ -1,9 +1,12 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort
-import re, requests, glob
-from video import get_video
+import glob
 import hashlib
-from utils.seam import *
+import re
+
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from moviepy.video.io.VideoFileClip import VideoFileClip
+
+from utils.seam import *
+from video import get_video
 
 app = Flask(__name__)
 
@@ -276,4 +279,4 @@ def video_process():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
