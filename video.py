@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import sys
+
 import requests
 import re
 import json
@@ -15,17 +17,21 @@ def merge_av(audio_file, video_file, output_file):
     :param output_file: 输出文件路径
     :return: 合并是否成功
     """
-
     try:
+        # 根据操作系统选择 ffmpeg 命令
+        ffmpeg_cmd = 'ffmpeg.exe' if sys.platform == 'win32' else 'ffmpeg'
+
         cmd = [
-            'ffmpeg.exe',
+            ffmpeg_cmd,
             '-i', audio_file,
             '-i', video_file,
             '-c:v', 'copy',  # 视频流直接复制
             '-c:a', 'aac',  # 音频转AAC格式
             output_file
         ]
+
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
         if os.path.exists(output_file):
             return True
         return False
