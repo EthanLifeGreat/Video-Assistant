@@ -284,8 +284,8 @@
         const parts = time.split(":").map(Number);
         if (parts.some(isNaN)) return null;
         return parts.length === 2
-                ? parts[0] * 60 + parts[1]
-                : parts[0] * 3600 + parts[1] * 60 + parts[2];
+            ? parts[0] * 60 + parts[1]
+            : parts[0] * 3600 + parts[1] * 60 + parts[2];
     };
 
     const secondsToTime = (sec) => {
@@ -293,31 +293,31 @@
         const m = Math.floor((sec % 3600) / 60);
         const s = Math.floor(sec % 60);
         return h > 0
-                ? `${h}:${m.toString().padStart(2, "0")}:${s
-                        .toString()
-                        .padStart(2, "0")}`
-                : `${m}:${s.toString().padStart(2, "0")}`;
+            ? `${h}:${m.toString().padStart(2, "0")}:${s
+                .toString()
+                .padStart(2, "0")}`
+            : `${m}:${s.toString().padStart(2, "0")}`;
     };
 
     const updateSegmentList = (segments) => {
         const list = $("segmentList");
         if (!segments || segments.length === 0) return (list.innerHTML = "");
         list.innerHTML =
-                `<h3>可下载片段</h3>` +
-                segments
-                        .map(
-                                (seg) => `
+            `<h3>可下载片段</h3>` +
+            segments
+                .map(
+                    (seg) => `
             <div class="segment-item">
               <div class="segment-info">
                 <div>${seg.title}</div>
                 <div class="segment-time">${secondsToTime(seg.start)} - ${secondsToTime(
-                                        seg.end
-                                        )}</div>
+                        seg.end
+                    )}</div>
               </div>
               <video controls width="200" src="${seg.url}"></video>
             </div>`
-                        )
-                        .join("");
+                )
+                .join("");
     };
 
     const fetchJSON = async (url, data) => {

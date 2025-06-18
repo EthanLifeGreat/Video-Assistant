@@ -167,80 +167,50 @@ def video_api():
         if not video_url:
             return jsonify({'error': '缺少视频URL参数'}), 400
 
-        # 检查缓存
-        video_hash = get_video_hash(video_url)
-        cached_data = video_cache.get(video_hash, {})
-
-        title = cached_data.get('title')
-        video_path = cached_data.get('path')
-
-        if not title or not video_path or not os.path.exists(video_path):
-            # 需要下载
-            title = get_video(video_url)
-            cached_data = video_cache.get(video_hash)
-            video_path = cached_data['path']
+        title = get_video(video_url)
+        safe_title = re.sub(r'[\\/:"*?<>|]+', '', title)
+        filename = f"{safe_title}.mp4"
+        video_path = os.path.join(DOWNLOAD_DIR, filename)
 
         if not os.path.exists(video_path):
             return jsonify({'error': '视频文件不存在，合并可能失败'}), 500
 
-        # 处理时间段剪辑
-        if start_time and end_time:
+        # 如果提供了时间，剪辑片段
+        if start_time is not None and end_time is not None:
+            from moviepy.video.io.VideoFileClip import VideoFileClip
+            import time
+
+            clip_filename = f"{safe_title}_{start_time}-{end_time}.mp4"
+            clip_path = os.path.join(DOWNLOAD_DIR, clip_filename)
+
             try:
-                # 生成剪辑后文件名（带时间戳防冲突）
-                clip_filename = f"{safe_title}_{start_time}-{end_time}_{int(time.time())}.mp4"
-                clip_path = os.path.join(DOWNLOAD_DIR, clip_filename)
+                start = float(start_time)
+                end = float(end_time)
 
-                # 使用MoviePy剪辑视频，优化参数
-                clip = VideoFileClip(video_path)
-                edited_clip = clip.subclip(float(start_time), float(end_time))
-                edited_clip.write_videofile(
-                    clip_path,
-                    codec="libx264",
-                    audio_codec="aac",
-                    threads=4,
-                    fps=clip.fps,
-                    preset='ultrafast',  # 使用最快的编码预设
-                    ffmpeg_params=['-crf', '28']  # 使用较高的压缩率
-                )
-                clip.close()
-                final_filename = clip_filename
-
-                # 记录视频片段
-                if safe_title not in video_segments:
-                    video_segments[safe_title] = {
-                        'original_path': video_path,
-                        'segments': []
-                    }
-                video_segments[safe_title]['segments'].append(clip_path)
-
-                # 获取所有片段信息
-                segments = []
-                for segment in video_segments[safe_title]['segments']:
-                    filename = os.path.basename(segment)
-                    time_match = re.search(r'_(\d+)-(\d+)_', filename)
-                    if time_match:
-                        start = float(time_match.group(1))
-                        end = float(time_match.group(2))
-                        segments.append({
-                            'title': title,
-                            'start': start,
-                            'end': end,
-                            'url': f'/downloads/{filename}'
-                        })
+                with VideoFileClip(video_path) as clip:
+                    subclip = clip.subclip(start, end)
+                    subclip.write_videofile(
+                        clip_path,
+                        codec="libx264",
+                        audio_codec="aac",
+                        threads=4,
+                        preset="ultrafast",
+                        fps=clip.fps,
+                        logger=None  # 不输出冗余信息
+                    )
 
                 return jsonify({
                     'title': title,
-                    'video_url': f'/downloads/{final_filename}',
-                    'segments': segments
+                    'video_url': f'/downloads/{clip_filename}'
                 })
-
             except Exception as e:
-                return jsonify({'error': f'视频剪辑失败: {str(e)}'}), 500
-        else:
-            return jsonify({
-                'title': title,
-                'video_url': f'/downloads/{original_filename}'
-            })
+                return jsonify({'error': f'剪辑失败: {str(e)}'}), 500
+
+        # 没有时间参数，返回完整视频
+        return jsonify({
+            'title': title,
+            'video_url': f'/downloads/{filename}'
+        })
 
     except requests.RequestException as e:
         return jsonify({'error': f'请求B站失败: {str(e)}'}), 502
