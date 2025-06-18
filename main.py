@@ -172,6 +172,7 @@ def video_api():
         cached_data = video_cache.get(video_hash, {})
 
         title = cached_data.get('title')
+        safe_title = re.sub(r'[\\/:"*?<>|]+', '', title)
         video_path = cached_data.get('path')
 
         if not title or not video_path or not os.path.exists(video_path):
