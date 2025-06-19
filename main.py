@@ -3,7 +3,7 @@ import hashlib
 import re
 import requests
 
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, send_file
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from utils.seam import *
@@ -236,6 +236,9 @@ def video_api():
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
 
 
+from flask import send_file
+
+
 @app.route('/api/video_process', methods=['POST'])
 def video_process():
     data = request.get_json()
@@ -244,36 +247,35 @@ def video_process():
     if not action:
         return jsonify({'success': False, 'message': '缺少 action 参数'}), 400
 
-    # 自动查找 /downloads/ 目录下最新的 mp4 文件
     mp4_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.mp4'))
     if not mp4_files:
         return jsonify({'success': False, 'message': '未找到可处理的视频文件'}), 404
 
-    # 取最后修改时间最新的文件
     mp4_files.sort(key=os.path.getmtime, reverse=True)
     local_path = mp4_files[0]
     print(f"[自动选择] 最新视频文件: {local_path}")
 
     try:
         if action == 'vocal_remove':
-            output_audio_path = os.path.join(DOWNLOAD_DIR, 'vocal_removed.wav')
-            success = vocal_remove(local_path, output_audio_path)
-            message = f"伴奏提取 {'成功' if success else '失败'}，文件: {output_audio_path}"
+            output_path = os.path.join(DOWNLOAD_DIR, 'vocal_removed.wav')
+            success = vocal_remove(local_path, output_path)
 
         elif action == 'extract_subtitle':
-            output_srt_path = os.path.join(DOWNLOAD_DIR, 'subtitle.srt')
-            success = extract_subtitle(local_path, output_srt_path)
-            message = f"字幕提取 {'成功' if success else '失败'}，文件: {output_srt_path}"
+            output_path = os.path.join(DOWNLOAD_DIR, 'subtitle.srt')
+            success = extract_subtitle(local_path, output_path)
 
         elif action == 'enhance_audio':
-            output_video_path = os.path.join(DOWNLOAD_DIR, 'video_enhanced.mp4')
-            success = enhance_video_audio(local_path, output_video_path)
-            message = f"人声增强 {'成功' if success else '失败'}，文件: {output_video_path}"
+            output_path = os.path.join(DOWNLOAD_DIR, 'video_enhanced.mp4')
+            success = enhance_video_audio(local_path, output_path)
 
         else:
             return jsonify({'success': False, 'message': '未知操作类型'}), 400
 
-        return jsonify({'success': success, 'message': message})
+        if success and os.path.exists(output_path):
+            # ✅ 成功就立即将文件发送给前端下载
+            return send_file(output_path, as_attachment=True, download_name=os.path.basename(output_path))
+
+        return jsonify({'success': False, 'message': '处理失败或文件未生成'}), 500
 
     except Exception as e:
         return jsonify({'success': False, 'message': f'处理异常: {str(e)}'}), 500

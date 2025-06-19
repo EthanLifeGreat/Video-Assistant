@@ -340,24 +340,54 @@
             return;
         }
 
-        // 显示加载状态
         $("loading").style.display = "block";
         showStatus(`正在执行【${action}】操作...`, "info");
 
-        // 调用接口
-        const {ok, data} = await fetchJSON("/api/video_process", {
-            action,
-            video_url: url,  // 传入视频地址，后台会转本地缓存路径
-        });
+        try {
+            const res = await fetch("/api/video_process", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({action, video_url: url})
+            });
 
-        $("loading").style.display = "none";
+            $("loading").style.display = "none";
 
-        if (ok && data.success) {
-            showStatus(data.message, "success");
-        } else {
-            showStatus(data.message || "操作失败", "error");
+            if (!res.ok) {
+                const errorText = await res.text();
+                showStatus(`处理失败：${errorText}`, "error");
+                return;
+            }
+
+            // 获取文件名（如果后端设置了 Content-Disposition）
+            const disposition = res.headers.get("Content-Disposition");
+            let filename = "downloaded_file";
+            if (disposition && disposition.includes("filename=")) {
+                filename = disposition.split("filename=")[1].replace(/["']/g, "");
+            } else {
+                // 根据 action 提供默认名
+                const ext = action === "extract_subtitle" ? ".srt" :
+                    action === "vocal_remove" ? ".wav" :
+                        ".mp4";
+                filename = action + ext;
+            }
+
+            const blob = await res.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(blobUrl);
+
+            showStatus(`【${action}】处理完成，已开始下载`, "success");
+        } catch (err) {
+            $("loading").style.display = "none";
+            showStatus("请求失败：" + err.message, "error");
         }
     }
+
 
     // 绑定3个按钮事件
     $("btnVocalRemove").onclick = () => callVideoProcess("vocal_remove");
