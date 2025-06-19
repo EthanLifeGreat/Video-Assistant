@@ -141,10 +141,15 @@
             margin: 0 auto;
         }
 
-        .loading::after {
-            content: "加载中...";
-            animation: dots 1.5s infinite;
+        .loading {
+            display: none;
         }
+
+        .loading::after {
+            content: "";
+            animation: none;
+        }
+
 
         @keyframes dots {
             0%,
@@ -230,7 +235,7 @@
         </div>
     </div>
 
-    <div class="action-buttons">
+    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
         <button type="button" id="previewBtn">预览视频</button>
         <button type="submit">预览片段</button>
         <button type="button" id="finishBtn" class="finish">完成下载</button>
