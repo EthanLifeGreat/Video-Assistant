@@ -22,6 +22,9 @@ def enhance_video_audio(video_path, output_video_path, output_format="wav"):
         # 创建输出目录（如果不存在）
         os.makedirs(os.path.dirname(output_video_path), exist_ok=True)
 
+        if os.path.exists(output_video_path):
+            os.remove(output_video_path)
+
         # 将输入视频复制到输出路径（模拟"处理"过程）
         shutil.copyfile(video_path, output_video_path)
 

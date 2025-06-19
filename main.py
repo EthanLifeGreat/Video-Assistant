@@ -3,13 +3,13 @@ import hashlib
 import re
 import requests
 
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort, send_file, url_for
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from utils.seam import *
+from utils.clients import *
 from video import get_video
 
-app = Flask(__name__, static_url_path='/downloads', static_folder='downloads')
+app = Flask(__name__)
 
 DOWNLOAD_DIR = os.path.join(os.getcwd(), 'downloads')
 # 确保下载目录存在
@@ -33,20 +33,6 @@ def downloads(filename):
     if not requested_path.startswith(DOWNLOAD_DIR):
         abort(404)
     return send_from_directory(DOWNLOAD_DIR, filename)
-
-
-@app.route('/download/<path:filename>')
-def download_file(filename):
-    full_path = os.path.join(DOWNLOAD_DIR, filename)
-    if os.path.exists(full_path):
-        return send_file(full_path, as_attachment=True)
-    else:
-        return f"文件未找到: {filename}", 404
-
-
-@app.route('/downloads/<path:filename>')
-def serve_download(filename):
-    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -258,42 +244,49 @@ def video_process():
     if not action:
         return jsonify({'success': False, 'message': '缺少 action 参数'}), 400
 
+    # 自动查找 /downloads/ 目录下最新的 mp4 文件
     mp4_files = glob.glob(os.path.join(DOWNLOAD_DIR, '*.mp4'))
     if not mp4_files:
         return jsonify({'success': False, 'message': '未找到可处理的视频文件'}), 404
 
+    # 取最后修改时间最新的文件
     mp4_files.sort(key=os.path.getmtime, reverse=True)
     local_path = mp4_files[0]
+    print(f"[自动选择] 最新视频文件: {local_path}")
 
     try:
         if action == 'vocal_remove':
-            filename = 'vocal_removed.wav'
-            output_path = os.path.join(DOWNLOAD_DIR, filename)
-            success = vocal_remove(local_path, output_path)
+            output_audio_path = os.path.join(DOWNLOAD_DIR, 'vocal_removed.wav')
+            success = vocal_remove(local_path, output_audio_path)
+            return jsonify({
+                'success': success,
+                'message': f"伴奏提取 {'成功' if success else '失败'}",
+                'file_path': f'/downloads/{os.path.basename(output_audio_path)}'
+            })
 
         elif action == 'extract_subtitle':
-            filename = 'subtitle.srt'
-            output_path = os.path.join(DOWNLOAD_DIR, filename)
-            success = extract_subtitle(local_path, output_path)
+            output_srt_path = os.path.join(DOWNLOAD_DIR, 'subtitle.srt')
+            success = extract_subtitle(local_path, output_srt_path)
+            return jsonify({
+                'success': success,
+                'message': f"字幕提取 {'成功' if success else '失败'}",
+                'file_path': f'/downloads/{os.path.basename(output_srt_path)}'
+            })
 
         elif action == 'enhance_audio':
-            filename = 'video_enhanced.mp4'
-            output_path = os.path.join(DOWNLOAD_DIR, filename)
-            success = enhance_video_audio(local_path, output_path)
+            output_video_path = os.path.join(DOWNLOAD_DIR, 'video_enhanced.mp4')
+            success = enhance_video_audio(local_path, output_video_path)
+            return jsonify({
+                'success': success,
+                'message': f"人声增强 {'成功' if success else '失败'}",
+                'file_path': f'/downloads/{os.path.basename(output_video_path)}'
+            })
 
         else:
             return jsonify({'success': False, 'message': '未知操作类型'}), 400
 
-        if not success:
-            return jsonify({'success': False, 'message': '处理函数返回 False'}), 500
-        if not os.path.exists(output_path):
-            return jsonify({'success': False, 'message': f'文件未生成: {output_path}'}), 500
-
-        download_url = url_for('download_file', filename=filename)
-        return jsonify({'success': True, 'message': '处理完成', 'download_url': download_url})
-
     except Exception as e:
-        return jsonify({'success': False, 'message': f'异常: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': f'处理异常: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
