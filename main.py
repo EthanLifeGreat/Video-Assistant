@@ -6,7 +6,7 @@ import requests
 from flask import Flask, render_template, request, jsonify, send_from_directory, abort
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from utils.seam import *
+from utils.clients import *
 from video import get_video
 
 app = Flask(__name__)

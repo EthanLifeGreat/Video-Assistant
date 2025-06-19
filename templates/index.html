@@ -252,7 +252,7 @@
     <div class="action-buttons">
         <button type="button" id="previewBtn">预览视频</button>
         <button type="submit">预览片段</button>
-        <button type="button" id="finishBtn" class="finish">完成下载</button>
+        <button type="button" id="finishBtn" class="finish" style="display: none;">完成下载</button>
     </div>
     <div class="action-buttons" style="margin-top:20px;">
         <button type="button" id="btnVocalRemove">伴奏提取</button>
@@ -296,6 +296,7 @@
         $("input_field").value = "";
         document.querySelector('[name="start_time"]').value = "";
         document.querySelector('[name="end_time"]').value = "";
+        $("result").innerHTML = "";
         showStatus("已重置", "success");
     };
 
@@ -366,7 +367,12 @@
         if (!ok) return showStatus(data.error || "预览失败", "error");
 
         currentVideoTitle = data.title;
-        $("previewContainer").innerHTML = `<h3>${data.title}</h3><video controls src="${data.video_url}"></video>`;
+        // 修改这里：添加"全视频预览"标题
+        $("previewContainer").innerHTML = `
+            <h3>全视频预览</h3>
+            <p>${data.title}</p>
+            <video controls src="${data.video_url}"></video>
+        `;
         showStatus("视频加载完成", "success");
 
         const segRes = await fetchJSON("/api/get_segments", {title: data.title});
@@ -409,13 +415,19 @@
         $("progressBar").style.display = "none";
 
         if (ok) {
-            $("videoContainer").innerHTML = `<h3>${data.title}</h3><video controls src="${data.video_url}"></video>`;
+            // 修改这里：添加"片段预览"标题
+            $("videoContainer").innerHTML = `
+                <h3>片段预览</h3>
+                <p>${data.title}</p>
+                <video controls src="${data.video_url}"></video>
+            `;
             showStatus("片段下载完成", "success");
             if (data.segments) updateSegmentList(data.segments);
         } else {
             showStatus(data.error || "下载失败", "error");
         }
     };
+
     // 发送视频处理请求的通用函数
     async function callVideoProcess(action) {
         const url = $("input_field").value.trim();
