@@ -3,13 +3,13 @@ import hashlib
 import re
 import requests
 
-from flask import Flask, render_template, request, jsonify, send_from_directory, abort, send_file
+from flask import Flask, render_template, request, jsonify, send_from_directory, abort, send_file, url_for
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from utils.seam import *
 from video import get_video
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='/downloads', static_folder='downloads')
 
 DOWNLOAD_DIR = os.path.join(os.getcwd(), 'downloads')
 # 确保下载目录存在
@@ -33,6 +33,20 @@ def downloads(filename):
     if not requested_path.startswith(DOWNLOAD_DIR):
         abort(404)
     return send_from_directory(DOWNLOAD_DIR, filename)
+
+
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    full_path = os.path.join(DOWNLOAD_DIR, filename)
+    if os.path.exists(full_path):
+        return send_file(full_path, as_attachment=True)
+    else:
+        return f"文件未找到: {filename}", 404
+
+
+@app.route('/downloads/<path:filename>')
+def serve_download(filename):
+    return send_from_directory(DOWNLOAD_DIR, filename, as_attachment=True)
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -236,9 +250,6 @@ def video_api():
         return jsonify({'error': f'服务器错误: {str(e)}'}), 500
 
 
-from flask import send_file
-
-
 @app.route('/api/video_process', methods=['POST'])
 def video_process():
     data = request.get_json()
@@ -253,32 +264,36 @@ def video_process():
 
     mp4_files.sort(key=os.path.getmtime, reverse=True)
     local_path = mp4_files[0]
-    print(f"[自动选择] 最新视频文件: {local_path}")
 
     try:
         if action == 'vocal_remove':
-            output_path = os.path.join(DOWNLOAD_DIR, 'vocal_removed.wav')
+            filename = 'vocal_removed.wav'
+            output_path = os.path.join(DOWNLOAD_DIR, filename)
             success = vocal_remove(local_path, output_path)
 
         elif action == 'extract_subtitle':
-            output_path = os.path.join(DOWNLOAD_DIR, 'subtitle.srt')
+            filename = 'subtitle.srt'
+            output_path = os.path.join(DOWNLOAD_DIR, filename)
             success = extract_subtitle(local_path, output_path)
 
         elif action == 'enhance_audio':
-            output_path = os.path.join(DOWNLOAD_DIR, 'video_enhanced.mp4')
+            filename = 'video_enhanced.mp4'
+            output_path = os.path.join(DOWNLOAD_DIR, filename)
             success = enhance_video_audio(local_path, output_path)
 
         else:
             return jsonify({'success': False, 'message': '未知操作类型'}), 400
 
-        if success and os.path.exists(output_path):
-            # ✅ 成功就立即将文件发送给前端下载
-            return send_file(output_path, as_attachment=True, download_name=os.path.basename(output_path))
+        if not success:
+            return jsonify({'success': False, 'message': '处理函数返回 False'}), 500
+        if not os.path.exists(output_path):
+            return jsonify({'success': False, 'message': f'文件未生成: {output_path}'}), 500
 
-        return jsonify({'success': False, 'message': '处理失败或文件未生成'}), 500
+        download_url = url_for('download_file', filename=filename)
+        return jsonify({'success': True, 'message': '处理完成', 'download_url': download_url})
 
     except Exception as e:
-        return jsonify({'success': False, 'message': f'处理异常: {str(e)}'}), 500
+        return jsonify({'success': False, 'message': f'异常: {str(e)}'}), 500
 
 
 if __name__ == '__main__':

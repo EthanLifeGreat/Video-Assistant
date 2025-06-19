@@ -235,11 +235,17 @@
         <button type="submit">预览片段</button>
         <button type="button" id="finishBtn" class="finish">完成下载</button>
     </div>
-    <div class="action-buttons" style="margin-top:20px;">
-        <button type="button" id="btnVocalRemove">伴奏提取</button>
-        <button type="button" id="btnExtractSubtitle">字幕提取</button>
-        <button type="button" id="btnEnhanceAudio">人声增强</button>
+    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
+        <button type="button" id="btnVocalRemove" style="flex: 1;">伴奏提取</button>
+        <button type="button" id="btnExtractSubtitle" style="flex: 1;">字幕提取</button>
+        <button type="button" id="btnEnhanceAudio" style="flex: 1;">人声增强</button>
     </div>
+    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
+        <div id="vocalResult" style="flex: 1;"><h3>🎵 伴奏提取</h3></div>
+        <div id="subtitleResult" style="flex: 1;"><h3>📄 字幕提取</h3></div>
+        <div id="enhanceResult" style="flex: 1;"><h3>🔊 人声增强</h3></div>
+    </div>
+
 </form>
 
 <!-- 状态与结果展示 -->
@@ -253,6 +259,7 @@
 <div id="videoContainer" class="video-container"></div>
 <div id="errorMsg" class="error"></div>
 <div id="result"></div>
+
 
 <button type="button" id="resetBtn" class="reset-button">重置</button>
 
@@ -352,36 +359,26 @@
 
             $("loading").style.display = "none";
 
-            if (!res.ok) {
-                const errorText = await res.text();
-                showStatus(`处理失败：${errorText}`, "error");
+            const result = await res.json();
+            console.log("处理结果：", result);  // ✅ 输出后端返回
+
+            if (!res.ok || !result.success) {
+                showStatus(result.message || "处理失败", "error");
                 return;
             }
 
-            // 获取文件名（如果后端设置了 Content-Disposition）
-            const disposition = res.headers.get("Content-Disposition");
-            let filename = "downloaded_file";
-            if (disposition && disposition.includes("filename=")) {
-                filename = disposition.split("filename=")[1].replace(/["']/g, "");
-            } else {
-                // 根据 action 提供默认名
-                const ext = action === "extract_subtitle" ? ".srt" :
-                    action === "vocal_remove" ? ".wav" :
-                        ".mp4";
-                filename = action + ext;
-            }
+            let container;
+            if (action === "vocal_remove") container = $("vocalResult");
+            else if (action === "extract_subtitle") container = $("subtitleResult");
+            else if (action === "enhance_audio") container = $("enhanceResult");
 
-            const blob = await res.blob();
-            const blobUrl = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = blobUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(blobUrl);
+            container.innerHTML = `
+            <a href="${result.download_url}" download target="_blank">点击下载文件</a>
+            `;
 
-            showStatus(`【${action}】处理完成，已开始下载`, "success");
+
+            showStatus(`【${action}】处理完成`, "success");
+
         } catch (err) {
             $("loading").style.display = "none";
             showStatus("请求失败：" + err.message, "error");
