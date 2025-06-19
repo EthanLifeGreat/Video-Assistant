@@ -141,9 +141,13 @@
             margin: 0 auto;
         }
 
+        .loading {
+            display: none;
+        }
+
         .loading::after {
-            content: "加载中...";
-            animation: dots 1.5s infinite;
+            content: "";
+            animation: none;
         }
 
         @keyframes dots {
@@ -184,6 +188,7 @@
             background-color: #ffebee;
             color: #b71c1c;
         }
+
         #result {
             margin-top: 20px;
             padding: 15px;
@@ -272,7 +277,6 @@
 <div id="segmentList" class="segment-list"></div>
 <div id="videoContainer" class="video-container"></div>
 <div id="errorMsg" class="error"></div>
-<div id="result"></div>
 
 <button type="button" id="resetBtn" class="reset-button">重置</button>
 
@@ -453,13 +457,11 @@
             // 根据不同类型显示结果
             if (action === "vocal_remove") {
                 displayResult("audio", null, data.file_path);
-            }
-            else if (action === "extract_subtitle") {
+            } else if (action === "extract_subtitle") {
                 // 获取字幕内容
                 const subtitleContent = await fetchSubtitleContent(data.file_path);
                 displayResult("subtitle", subtitleContent, data.file_path);
-            }
-            else if (action === "enhance_audio") {
+            } else if (action === "enhance_audio") {
                 displayResult("video", null, data.file_path);
             }
 
@@ -487,8 +489,7 @@
                     <a href="${dataPath}" download>下载音频</a>
                 </div>
             `;
-        }
-        else if (type === "subtitle") {
+        } else if (type === "subtitle") {
             resultDiv.innerHTML = `
                 <h3>字幕提取结果</h3>
                 <textarea id="subtitleText" readonly>${content}</textarea>
@@ -505,8 +506,7 @@
                 document.execCommand("copy");
                 showStatus("字幕已复制到剪贴板", "success");
             };
-        }
-        else if (type === "video") {
+        } else if (type === "video") {
             resultDiv.innerHTML = `
                 <h3>人声增强结果</h3>
                 <video controls width="100%">
