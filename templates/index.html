@@ -141,15 +141,10 @@
             margin: 0 auto;
         }
 
-        .loading {
-            display: none;
-        }
-
         .loading::after {
-            content: "";
-            animation: none;
+            content: "加载中...";
+            animation: dots 1.5s infinite;
         }
-
 
         @keyframes dots {
             0%,
@@ -188,6 +183,25 @@
         .error {
             background-color: #ffebee;
             color: #b71c1c;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        #result h3 {
+            margin-top: 0;
+        }
+
+        #subtitleText {
+            width: 100%;
+            height: 200px;
+            padding: 10px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
         }
     </style>
 </head>
@@ -235,22 +249,17 @@
         </div>
     </div>
 
-    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
+    <div class="action-buttons">
         <button type="button" id="previewBtn">预览视频</button>
         <button type="submit">预览片段</button>
         <button type="button" id="finishBtn" class="finish">完成下载</button>
     </div>
-    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
-        <button type="button" id="btnVocalRemove" style="flex: 1;">伴奏提取</button>
-        <button type="button" id="btnExtractSubtitle" style="flex: 1;">字幕提取</button>
-        <button type="button" id="btnEnhanceAudio" style="flex: 1;">人声增强</button>
+    <div class="action-buttons" style="margin-top:20px;">
+        <button type="button" id="btnVocalRemove">伴奏提取</button>
+        <button type="button" id="btnExtractSubtitle">字幕提取</button>
+        <button type="button" id="btnEnhanceAudio">人声增强</button>
     </div>
-    <div class="action-buttons" style="margin-top:20px; display: flex; gap: 15px; justify-content: space-between;">
-        <div id="vocalResult" style="flex: 1;"><h3>🎵 伴奏提取</h3></div>
-        <div id="subtitleResult" style="flex: 1;"><h3>📄 字幕提取</h3></div>
-        <div id="enhanceResult" style="flex: 1;"><h3>🔊 人声增强</h3></div>
-    </div>
-
+    <div id="result"></div>
 </form>
 
 <!-- 状态与结果展示 -->
@@ -264,7 +273,6 @@
 <div id="videoContainer" class="video-container"></div>
 <div id="errorMsg" class="error"></div>
 <div id="result"></div>
-
 
 <button type="button" id="resetBtn" class="reset-button">重置</button>
 
@@ -344,58 +352,6 @@
 
     let currentVideoTitle = "";
 
-    // 发送视频处理请求的通用函数
-    async function callVideoProcess(action) {
-        const url = $("input_field").value.trim();
-        if (!url) {
-            $("errorMsg").innerText = "请先输入视频链接";
-            return;
-        }
-
-        $("loading").style.display = "block";
-        showStatus(`正在执行【${action}】操作...`, "info");
-
-        try {
-            const res = await fetch("/api/video_process", {
-                method: "POST",
-                headers: {"Content-Type": "application/json"},
-                body: JSON.stringify({action, video_url: url})
-            });
-
-            $("loading").style.display = "none";
-
-            const result = await res.json();
-            console.log("处理结果：", result);  // ✅ 输出后端返回
-
-            if (!res.ok || !result.success) {
-                showStatus(result.message || "处理失败", "error");
-                return;
-            }
-
-            let container;
-            if (action === "vocal_remove") container = $("vocalResult");
-            else if (action === "extract_subtitle") container = $("subtitleResult");
-            else if (action === "enhance_audio") container = $("enhanceResult");
-
-            container.innerHTML = `
-            <a href="${result.download_url}" download target="_blank">点击下载文件</a>
-            `;
-
-
-            showStatus(`【${action}】处理完成`, "success");
-
-        } catch (err) {
-            $("loading").style.display = "none";
-            showStatus("请求失败：" + err.message, "error");
-        }
-    }
-
-
-    // 绑定3个按钮事件
-    $("btnVocalRemove").onclick = () => callVideoProcess("vocal_remove");
-    $("btnExtractSubtitle").onclick = () => callVideoProcess("extract_subtitle");
-    $("btnEnhanceAudio").onclick = () => callVideoProcess("enhance_audio");
-
 
     $("previewBtn").onclick = async () => {
         const url = $("input_field").value;
@@ -460,6 +416,115 @@
             showStatus(data.error || "下载失败", "error");
         }
     };
+    // 发送视频处理请求的通用函数
+    async function callVideoProcess(action) {
+        const url = $("input_field").value.trim();
+        if (!url) {
+            showStatus("请先输入视频链接", "error");
+            return;
+        }
+
+        // 显示加载状态
+        $("loading").style.display = "block";
+        showStatus(`正在执行【${action}】操作...`, "info");
+
+        try {
+            // 调用接口
+            const {ok, data} = await fetchJSON("/api/video_process", {
+                action
+            });
+
+            if (!ok || !data.success) {
+                throw new Error(data.message || "操作失败");
+            }
+
+            // 根据不同类型显示结果
+            if (action === "vocal_remove") {
+                displayResult("audio", null, data.file_path);
+            }
+            else if (action === "extract_subtitle") {
+                // 获取字幕内容
+                const subtitleContent = await fetchSubtitleContent(data.file_path);
+                displayResult("subtitle", subtitleContent, data.file_path);
+            }
+            else if (action === "enhance_audio") {
+                displayResult("video", null, data.file_path);
+            }
+
+            showStatus(data.message, "success");
+        } catch (error) {
+            showStatus(error.message || "操作失败", "error");
+        } finally {
+            $("loading").style.display = "none";
+        }
+    }
+
+    // 显示处理结果
+    const displayResult = (type, content, dataPath = null) => {
+        const resultDiv = $("result");
+        resultDiv.innerHTML = ""; // 清空之前的结果
+
+        if (type === "audio") {
+            resultDiv.innerHTML = `
+                <h3>伴奏提取结果</h3>
+                <audio controls>
+                    <source src="${dataPath}" type="audio/mpeg">
+                    您的浏览器不支持音频播放。
+                </audio>
+                <div style="margin-top: 10px;">
+                    <a href="${dataPath}" download>下载音频</a>
+                </div>
+            `;
+        }
+        else if (type === "subtitle") {
+            resultDiv.innerHTML = `
+                <h3>字幕提取结果</h3>
+                <textarea id="subtitleText" readonly>${content}</textarea>
+                <button id="copySubtitleBtn">复制字幕</button>
+                <div style="margin-top: 10px;">
+                    <a href="${dataPath}" download>下载字幕文件</a>
+                </div>
+            `;
+
+            // 添加复制按钮功能
+            $("copySubtitleBtn").onclick = () => {
+                const textarea = $("subtitleText");
+                textarea.select();
+                document.execCommand("copy");
+                showStatus("字幕已复制到剪贴板", "success");
+            };
+        }
+        else if (type === "video") {
+            resultDiv.innerHTML = `
+                <h3>人声增强结果</h3>
+                <video controls width="100%">
+                    <source src="${dataPath}" type="video/mp4">
+                    您的浏览器不支持视频播放。
+                </video>
+                <div style="margin-top: 10px;">
+                    <a href="${dataPath}" download>下载视频</a>
+                </div>
+            `;
+        }
+    };
+
+    // 获取字幕内容的函数
+    const fetchSubtitleContent = async (subtitlePath) => {
+        try {
+            const response = await fetch(subtitlePath);
+            if (!response.ok) throw new Error("无法获取字幕内容");
+            return await response.text();
+        } catch (error) {
+            console.error("获取字幕内容失败:", error);
+            return "无法加载字幕内容";
+        }
+    };
+    // 绑定按钮事件
+    $("btnVocalRemove").onclick = () => callVideoProcess("vocal_remove");
+    $("btnExtractSubtitle").onclick = () => callVideoProcess("extract_subtitle");
+    $("btnEnhanceAudio").onclick = () => callVideoProcess("enhance_audio");
+
+
 </script>
 </body>
 </html>
